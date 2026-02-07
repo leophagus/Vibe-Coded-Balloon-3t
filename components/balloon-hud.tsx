@@ -7,15 +7,18 @@ import {
   Mountain,
   Timer,
   Gauge,
+  Star,
+  Trophy,
 } from "lucide-react"
 import type { BalloonState } from "@/lib/balloon-types"
 import { GAME_CONSTANTS as GC } from "@/lib/balloon-types"
 
 interface BalloonHudProps {
   state: BalloonState
+  bestScore: number
 }
 
-export default function BalloonHud({ state }: BalloonHudProps) {
+export default function BalloonHud({ state, bestScore }: BalloonHudProps) {
   const speedDir =
     state.velocity > 0.05 ? "up" : state.velocity < -0.05 ? "down" : "stable"
   const speedMs = Math.abs(state.velocity * 50).toFixed(1)
@@ -118,6 +121,38 @@ export default function BalloonHud({ state }: BalloonHudProps) {
             {Math.round(state.flightTime)}
           </span>
           <span className="text-sm text-muted-foreground mb-0.5">s</span>
+        </div>
+      </div>
+
+      {/* Current Score */}
+      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[170px]">
+        <div className="flex items-center gap-2 mb-1">
+          <Star className="w-4 h-4 text-amber-400" />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Score
+          </span>
+        </div>
+        <div className="flex items-end gap-1">
+          <span className="text-lg font-bold text-amber-500 tabular-nums">
+            {state.score}
+          </span>
+          <span className="text-sm text-muted-foreground mb-0.5">pts</span>
+        </div>
+      </div>
+
+      {/* Best Score */}
+      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[170px]">
+        <div className="flex items-center gap-2 mb-1">
+          <Trophy className="w-4 h-4 text-yellow-500" />
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Best
+          </span>
+        </div>
+        <div className="flex items-end gap-1">
+          <span className="text-lg font-bold text-yellow-500 tabular-nums">
+            {Math.max(bestScore, state.score)}
+          </span>
+          <span className="text-sm text-muted-foreground mb-0.5">pts</span>
         </div>
       </div>
     </div>

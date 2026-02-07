@@ -9,6 +9,7 @@ import {
   type BalloonState,
   type Cloud,
   type Star,
+  type ScorePopup,
 } from "@/lib/balloon-types"
 
 function createInitialState(): BalloonState {
@@ -27,6 +28,11 @@ function createInitialState(): BalloonState {
     flightTime: 0,
     countdown: GC.COUNTDOWN_SECONDS,
     hasLiftedOff: false,
+    score: 0,
+    flightScoreAccum: 0,
+    wasAboveMountainLine: false,
+    wasAboveMiddleLine: false,
+    scorePopups: [],
   }
 }
 
@@ -52,7 +58,9 @@ function generateStars(): Star[] {
 
 export default function BalloonGame() {
   const [state, setState] = useState<BalloonState>(createInitialState)
+  const [bestScore, setBestScore] = useState(0)
   const [tick, setTick] = useState(0)
+  const tickRef = useRef(0)
   const keysRef = useRef<Set<string>>(new Set())
 
   const clouds = useMemo(() => generateClouds(), [])
@@ -73,7 +81,10 @@ export default function BalloonGame() {
   }, [])
 
   const handleReset = useCallback(() => {
-    setState(createInitialState())
+    setState((prev) => {
+      setBestScore((b) => Math.max(b, prev.score))
+      return createInitialState()
+    })
   }, [])
 
   // Keyboard input
@@ -113,7 +124,10 @@ export default function BalloonGame() {
       lastTime = time
 
       setState((prev) => {
-        if (prev.gameOver) return prev
+        if (prev.gameOver) {
+          setBestScore((b) => Math.max(b, prev.score))
+          return prev
+        }
 
         let {
           altitude,
@@ -127,6 +141,11 @@ export default function BalloonGame() {
           isLanded,
           countdown,
           hasLiftedOff,
+          score,
+          flightScoreAccum,
+          wasAboveMountainLine,
+          wasAboveMiddleLine,
+          scorePopups,
         } = prev
 
         // Countdown timer (only before first liftoff)
@@ -208,6 +227,11 @@ export default function BalloonGame() {
             flightTime,
             countdown,
             hasLiftedOff: true,
+            score,
+            flightScoreAccum,
+            wasAboveMountainLine,
+            wasAboveMiddleLine,
+            scorePopups,
           }
         }
 
@@ -232,6 +256,11 @@ export default function BalloonGame() {
               flightTime,
               countdown,
               hasLiftedOff,
+              score,
+              flightScoreAccum,
+              wasAboveMountainLine,
+              wasAboveMiddleLine,
+              scorePopups,
             }
           }
 
@@ -245,6 +274,51 @@ export default function BalloonGame() {
         maxAltitude = Math.max(maxAltitude, altitude)
 
         if (!isLanded) flightTime += dt / 60
+
+        // ── Scoring ──
+        const currentTick = tickRef.current
+        const newPopups: ScorePopup[] = []
+
+        // Expire old popups (older than ~90 ticks ≈ 1.5s)
+        scorePopups = scorePopups.filter(
+          (p) => currentTick - p.tick < 90,
+        )
+
+        // 1) Time-based scoring: +1 every 5 seconds of flight
+        if (!isLanded) {
+          flightScoreAccum += dt / 60
+          if (flightScoreAccum >= GC.TIME_SCORE_INTERVAL) {
+            flightScoreAccum -= GC.TIME_SCORE_INTERVAL
+            score += GC.TIME_SCORE_POINTS
+            newPopups.push({ text: `+${GC.TIME_SCORE_POINTS}`, tick: currentTick })
+          }
+        }
+
+        // 2) Mountain-peak line crossing
+        const isAboveMountain = altitude >= GC.MOUNTAIN_LINE_ALTITUDE
+        if (isAboveMountain !== wasAboveMountainLine && hasLiftedOff) {
+          score += GC.MOUNTAIN_CROSS_SCORE
+          newPopups.push({
+            text: `+${GC.MOUNTAIN_CROSS_SCORE} Peak!`,
+            tick: currentTick,
+          })
+          wasAboveMountainLine = isAboveMountain
+        }
+
+        // 3) Middle line crossing
+        const isAboveMiddle = altitude >= GC.MIDDLE_LINE_ALTITUDE
+        if (isAboveMiddle !== wasAboveMiddleLine && hasLiftedOff) {
+          score += GC.MIDDLE_CROSS_SCORE
+          newPopups.push({
+            text: `+${GC.MIDDLE_CROSS_SCORE} Mid!`,
+            tick: currentTick,
+          })
+          wasAboveMiddleLine = isAboveMiddle
+        }
+
+        if (newPopups.length > 0) {
+          scorePopups = [...scorePopups, ...newPopups]
+        }
 
         return {
           ...prev,
@@ -261,10 +335,16 @@ export default function BalloonGame() {
           flightTime,
           countdown,
           hasLiftedOff,
+          score,
+          flightScoreAccum,
+          wasAboveMountainLine,
+          wasAboveMiddleLine,
+          scorePopups,
         }
       })
 
-      setTick((t) => t + 1)
+      tickRef.current += 1
+      setTick(tickRef.current)
       animId = requestAnimationFrame(loop)
     }
 
@@ -275,7 +355,7 @@ export default function BalloonGame() {
   return (
     <div className="relative w-full h-screen overflow-hidden select-none">
       <BalloonCanvas state={state} clouds={clouds} stars={stars} tick={tick} />
-      <BalloonHud state={state} />
+      <BalloonHud state={state} bestScore={bestScore} />
       <BalloonControls
         state={state}
         onBurnerChange={handleBurnerChange}

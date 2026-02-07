@@ -1,5 +1,10 @@
 export type GameOverReason = "crash" | "too_high" | "timeout" | null
 
+export interface ScorePopup {
+  text: string
+  tick: number
+}
+
 export interface BalloonState {
   altitude: number
   velocity: number
@@ -15,6 +20,11 @@ export interface BalloonState {
   flightTime: number
   countdown: number
   hasLiftedOff: boolean
+  score: number
+  flightScoreAccum: number
+  wasAboveMountainLine: boolean
+  wasAboveMiddleLine: boolean
+  scorePopups: ScorePopup[]
 }
 
 export interface Cloud {
@@ -52,4 +62,16 @@ export const GAME_CONSTANTS = {
   COUNTDOWN_SECONDS: 30,
   TOP_MARGIN: 100,
   BOTTOM_MARGIN: 170,
+  /** Altitude of the mountain-peak scoring line */
+  MOUNTAIN_LINE_ALTITUDE: 100,
+  /** Altitude of the middle scoring line */
+  MIDDLE_LINE_ALTITUDE: 400,
+  /** Points awarded every 5 seconds of flight */
+  TIME_SCORE_POINTS: 1,
+  /** Seconds between time-based score awards */
+  TIME_SCORE_INTERVAL: 5,
+  /** Points for crossing the mountain-peak line */
+  MOUNTAIN_CROSS_SCORE: 10,
+  /** Points for crossing the middle line */
+  MIDDLE_CROSS_SCORE: 5,
 } as const
