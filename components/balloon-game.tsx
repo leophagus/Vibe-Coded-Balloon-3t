@@ -21,14 +21,17 @@ function createInitialState(): BalloonState {
     sandbags: 4,
     maxSandbags: 6,
     isLanded: true,
-    isCrashed: false,
+    gameOver: false,
+    gameOverReason: null,
     maxAltitude: 0,
     flightTime: 0,
+    countdown: GC.COUNTDOWN_SECONDS,
+    hasLiftedOff: false,
   }
 }
 
 function generateClouds(): Cloud[] {
-  return Array.from({ length: 8 }, (_, i) => ({
+  return Array.from({ length: 8 }, () => ({
     x: Math.random() * 800,
     y: 80 + Math.random() * 250,
     width: 40 + Math.random() * 60,
@@ -51,8 +54,6 @@ export default function BalloonGame() {
   const [state, setState] = useState<BalloonState>(createInitialState)
   const [tick, setTick] = useState(0)
   const keysRef = useRef<Set<string>>(new Set())
-  const stateRef = useRef(state)
-  stateRef.current = state
 
   const clouds = useMemo(() => generateClouds(), [])
   const stars = useMemo(() => generateStars(), [])
@@ -63,7 +64,7 @@ export default function BalloonGame() {
 
   const handleAddSandbag = useCallback(() => {
     setState((s) =>
-      s.sandbags < s.maxSandbags ? { ...s, sandbags: s.sandbags + 1 } : s
+      s.sandbags < s.maxSandbags ? { ...s, sandbags: s.sandbags + 1 } : s,
     )
   }, [])
 
@@ -79,12 +80,16 @@ export default function BalloonGame() {
   useEffect(() => {
     const onDown = (e: KeyboardEvent) => {
       keysRef.current.add(e.key.toLowerCase())
-      if (e.key.toLowerCase() === "d") {
+      const key = e.key.toLowerCase()
+      if (key === "d") {
         setState((s) =>
-          s.sandbags > 0 && !s.isCrashed
+          s.sandbags > 0 && !s.gameOver
             ? { ...s, sandbags: s.sandbags - 1 }
-            : s
+            : s,
         )
+      }
+      if (key === "r") {
+        setState((s) => (s.gameOver ? createInitialState() : s))
       }
     }
     const onUp = (e: KeyboardEvent) => {
@@ -108,7 +113,7 @@ export default function BalloonGame() {
       lastTime = time
 
       setState((prev) => {
-        if (prev.isCrashed) return prev
+        if (prev.gameOver) return prev
 
         let {
           altitude,
@@ -120,7 +125,22 @@ export default function BalloonGame() {
           maxAltitude,
           flightTime,
           isLanded,
+          countdown,
+          hasLiftedOff,
         } = prev
+
+        // Countdown timer (only before first liftoff)
+        if (!hasLiftedOff) {
+          countdown -= dt / 60 // dt is in ~frames, 60 frames/sec
+          if (countdown <= 0) {
+            return {
+              ...prev,
+              countdown: 0,
+              gameOver: true,
+              gameOverReason: "timeout",
+            }
+          }
+        }
 
         // Keyboard burner control
         const keys = keysRef.current
@@ -129,36 +149,28 @@ export default function BalloonGame() {
           fuel > 0
         ) {
           burnerPower = Math.min(100, burnerPower + 3 * dt)
-        } else if (!keys.has("w") && !keys.has(" ") && !keys.has("arrowup")) {
-          // Only auto-decay if keyboard was controlling it
-          // Check if mouse/slider is not being used
-          if (burnerPower > 0 && burnerPower === prev.burnerPower) {
-            // slider hasn't changed, let keyboard decay
-          }
         }
 
         // Heating
         if (burnerPower > 0 && fuel > 0) {
           airTemperature = Math.min(
             GC.MAX_TEMP,
-            airTemperature + GC.BURNER_HEAT_RATE * (burnerPower / 100) * dt
+            airTemperature + GC.BURNER_HEAT_RATE * (burnerPower / 100) * dt,
           )
           fuel = Math.max(
             0,
-            fuel - GC.FUEL_CONSUMPTION_RATE * (burnerPower / 100) * dt
+            fuel - GC.FUEL_CONSUMPTION_RATE * (burnerPower / 100) * dt,
           )
         }
 
         // Cooling
         airTemperature = Math.max(
           GC.AMBIENT_TEMP,
-          airTemperature - GC.AIR_COOLING_RATE * dt
+          airTemperature - GC.AIR_COOLING_RATE * dt,
         )
 
         // Turn off burner if no fuel
-        if (fuel <= 0) {
-          burnerPower = 0
-        }
+        if (fuel <= 0) burnerPower = 0
 
         // Buoyancy
         const tempDiff = airTemperature - GC.AMBIENT_TEMP
@@ -179,6 +191,26 @@ export default function BalloonGame() {
         // Update altitude
         altitude += velocity * dt
 
+        // Check if balloon escaped the top of the screen
+        if (altitude >= GC.SCREEN_MAX_ALTITUDE) {
+          return {
+            ...prev,
+            altitude: GC.SCREEN_MAX_ALTITUDE,
+            velocity: 0,
+            airTemperature,
+            burnerPower: 0,
+            fuel,
+            sandbags,
+            gameOver: true,
+            gameOverReason: "too_high",
+            isLanded: false,
+            maxAltitude: Math.max(maxAltitude, GC.SCREEN_MAX_ALTITUDE),
+            flightTime,
+            countdown,
+            hasLiftedOff: true,
+          }
+        }
+
         // Ground collision
         if (altitude <= GC.GROUND_LEVEL) {
           altitude = GC.GROUND_LEVEL
@@ -192,11 +224,14 @@ export default function BalloonGame() {
               airTemperature,
               burnerPower: 0,
               fuel,
-              isCrashed: true,
+              sandbags,
+              gameOver: true,
+              gameOverReason: "crash",
               isLanded: true,
               maxAltitude,
               flightTime,
-              sandbags,
+              countdown,
+              hasLiftedOff,
             }
           }
 
@@ -204,15 +239,12 @@ export default function BalloonGame() {
           isLanded = true
         } else {
           isLanded = false
+          if (!hasLiftedOff) hasLiftedOff = true
         }
 
-        // Max altitude tracking
         maxAltitude = Math.max(maxAltitude, altitude)
 
-        // Flight time
-        if (!isLanded) {
-          flightTime += dt / 60
-        }
+        if (!isLanded) flightTime += dt / 60
 
         return {
           ...prev,
@@ -223,9 +255,12 @@ export default function BalloonGame() {
           fuel,
           sandbags,
           isLanded,
+          gameOver: false,
+          gameOverReason: null,
           maxAltitude,
           flightTime,
-          isCrashed: false,
+          countdown,
+          hasLiftedOff,
         }
       })
 
@@ -248,15 +283,6 @@ export default function BalloonGame() {
         onDropSandbag={handleDropSandbag}
         onReset={handleReset}
       />
-
-      {/* Title */}
-      <div className="absolute top-4 right-4">
-        <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-2 shadow-lg border border-border/50">
-          <h1 className="text-sm font-bold text-card-foreground tracking-wide">
-            Balloon Simulator
-          </h1>
-        </div>
-      </div>
     </div>
   )
 }

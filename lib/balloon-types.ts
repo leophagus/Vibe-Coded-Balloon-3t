@@ -1,3 +1,5 @@
+export type GameOverReason = "crash" | "too_high" | "timeout" | null
+
 export interface BalloonState {
   altitude: number
   velocity: number
@@ -7,9 +9,12 @@ export interface BalloonState {
   sandbags: number
   maxSandbags: number
   isLanded: boolean
-  isCrashed: boolean
+  gameOver: boolean
+  gameOverReason: GameOverReason
   maxAltitude: number
   flightTime: number
+  countdown: number
+  hasLiftedOff: boolean
 }
 
 export interface Cloud {
@@ -39,7 +44,12 @@ export const GAME_CONSTANTS = {
   FUEL_CONSUMPTION_RATE: 0.03,
   MAX_FUEL: 100,
   SANDBAG_WEIGHT: 0.008,
-  MAX_ALTITUDE: 10000,
+  /** The altitude that maps to the top of the playable screen area */
+  SCREEN_MAX_ALTITUDE: 800,
   SAFE_LANDING_SPEED: 0.8,
   GROUND_LEVEL: 0,
+  /** Countdown in seconds before takeoff is required */
+  COUNTDOWN_SECONDS: 30,
+  TOP_MARGIN: 100,
+  BOTTOM_MARGIN: 170,
 } as const

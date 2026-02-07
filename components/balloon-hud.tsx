@@ -9,19 +9,22 @@ import {
   Gauge,
 } from "lucide-react"
 import type { BalloonState } from "@/lib/balloon-types"
+import { GAME_CONSTANTS as GC } from "@/lib/balloon-types"
 
 interface BalloonHudProps {
   state: BalloonState
 }
 
 export default function BalloonHud({ state }: BalloonHudProps) {
-  const speedDir = state.velocity > 0.05 ? "up" : state.velocity < -0.05 ? "down" : "stable"
+  const speedDir =
+    state.velocity > 0.05 ? "up" : state.velocity < -0.05 ? "down" : "stable"
   const speedMs = Math.abs(state.velocity * 50).toFixed(1)
+  const altPct = Math.min(state.altitude / GC.SCREEN_MAX_ALTITUDE, 1)
 
   return (
-    <div className="absolute top-4 left-4 flex flex-col gap-2">
+    <div className="absolute top-4 left-4 flex flex-col gap-2 z-10">
       {/* Altitude */}
-      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[180px]">
+      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[170px]">
         <div className="flex items-center gap-2 mb-1">
           <Mountain className="w-4 h-4 text-blue-500" />
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -34,10 +37,25 @@ export default function BalloonHud({ state }: BalloonHudProps) {
           </span>
           <span className="text-sm text-muted-foreground mb-0.5">m</span>
         </div>
+        {/* Altitude bar */}
+        <div className="mt-2 h-1.5 bg-muted rounded-full overflow-hidden">
+          <div
+            className="h-full rounded-full transition-all duration-150"
+            style={{
+              width: `${altPct * 100}%`,
+              backgroundColor:
+                altPct > 0.85
+                  ? "#ef4444"
+                  : altPct > 0.65
+                    ? "#eab308"
+                    : "#3b82f6",
+            }}
+          />
+        </div>
       </div>
 
       {/* Vertical Speed */}
-      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[180px]">
+      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[170px]">
         <div className="flex items-center gap-2 mb-1">
           <Gauge className="w-4 h-4 text-emerald-500" />
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -45,8 +63,12 @@ export default function BalloonHud({ state }: BalloonHudProps) {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {speedDir === "up" && <ArrowUp className="w-4 h-4 text-emerald-500" />}
-          {speedDir === "down" && <ArrowDown className="w-4 h-4 text-red-500" />}
+          {speedDir === "up" && (
+            <ArrowUp className="w-4 h-4 text-emerald-500" />
+          )}
+          {speedDir === "down" && (
+            <ArrowDown className="w-4 h-4 text-red-500" />
+          )}
           {speedDir === "stable" && (
             <div className="w-4 h-0.5 bg-muted-foreground rounded" />
           )}
@@ -66,7 +88,7 @@ export default function BalloonHud({ state }: BalloonHudProps) {
       </div>
 
       {/* Temperature */}
-      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[180px]">
+      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[170px]">
         <div className="flex items-center gap-2 mb-1">
           <Thermometer className="w-4 h-4 text-orange-500" />
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
@@ -84,7 +106,7 @@ export default function BalloonHud({ state }: BalloonHudProps) {
       </div>
 
       {/* Flight Time */}
-      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[180px]">
+      <div className="bg-card/85 backdrop-blur-md rounded-xl px-4 py-3 shadow-lg border border-border/50 min-w-[170px]">
         <div className="flex items-center gap-2 mb-1">
           <Timer className="w-4 h-4 text-blue-400" />
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">

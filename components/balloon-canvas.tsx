@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useCallback } from "react"
 import type { BalloonState, Cloud, Star } from "@/lib/balloon-types"
+import { GAME_CONSTANTS as GC } from "@/lib/balloon-types"
 
 interface BalloonCanvasProps {
   state: BalloonState
@@ -10,210 +11,138 @@ interface BalloonCanvasProps {
   tick: number
 }
 
-function drawSky(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  altitude: number
-) {
-  const altPct = Math.min(altitude / 8000, 1)
-
-  const r1 = Math.round(135 - altPct * 100)
-  const g1 = Math.round(206 - altPct * 150)
-  const b1 = Math.round(235 - altPct * 100)
-
-  const r2 = Math.round(200 - altPct * 80)
-  const g2 = Math.round(230 - altPct * 100)
-  const b2 = Math.round(255 - altPct * 60)
-
+/* ── Sky (static gradient) ── */
+function drawSky(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const gradient = ctx.createLinearGradient(0, 0, 0, h)
-  gradient.addColorStop(0, `rgb(${r1},${g1},${b1})`)
-  gradient.addColorStop(1, `rgb(${r2},${g2},${b2})`)
+  gradient.addColorStop(0, "rgb(60, 100, 170)")
+  gradient.addColorStop(0.5, "rgb(135, 206, 235)")
+  gradient.addColorStop(1, "rgb(200, 230, 255)")
   ctx.fillStyle = gradient
   ctx.fillRect(0, 0, w, h)
 }
 
+/* ── Stars (static positions, visible subtly) ── */
 function drawStars(
   ctx: CanvasRenderingContext2D,
   stars: Star[],
-  altitude: number,
-  tick: number
+  tick: number,
 ) {
-  const starOpacity = Math.max(0, (altitude - 3000) / 5000)
-  if (starOpacity <= 0) return
-
   for (const star of stars) {
     const twinkle = Math.sin(tick * 0.05 + star.twinkle) * 0.3 + 0.7
     ctx.beginPath()
     ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2)
-    ctx.fillStyle = `rgba(255, 255, 255, ${starOpacity * twinkle})`
+    ctx.fillStyle = `rgba(255, 255, 255, ${0.15 * twinkle})`
     ctx.fill()
   }
 }
 
+/* ── Clouds (static Y, drift X) ── */
 function drawClouds(
   ctx: CanvasRenderingContext2D,
   clouds: Cloud[],
   w: number,
-  altitude: number,
-  tick: number
+  tick: number,
 ) {
-  const cloudAltMin = 200
-  const cloudAltMax = 4000
-
-  if (altitude > cloudAltMax + 500) return
-
-  const cloudOpacity =
-    altitude < cloudAltMin
-      ? Math.max(0.2, altitude / cloudAltMin)
-      : altitude > cloudAltMax
-        ? Math.max(0, 1 - (altitude - cloudAltMax) / 500)
-        : 1
-
   for (const cloud of clouds) {
     const cx = ((cloud.x + tick * cloud.speed) % (w + 200)) - 100
     ctx.save()
-    ctx.globalAlpha = cloud.opacity * cloudOpacity
+    ctx.globalAlpha = cloud.opacity
     ctx.fillStyle = "#fff"
-
-    // main cloud body
     ctx.beginPath()
     ctx.ellipse(cx, cloud.y, cloud.width, cloud.height, 0, 0, Math.PI * 2)
     ctx.fill()
-
-    // puffs
     ctx.beginPath()
-    ctx.ellipse(
-      cx - cloud.width * 0.5,
-      cloud.y + 5,
-      cloud.width * 0.6,
-      cloud.height * 0.7,
-      0,
-      0,
-      Math.PI * 2
-    )
+    ctx.ellipse(cx - cloud.width * 0.5, cloud.y + 5, cloud.width * 0.6, cloud.height * 0.7, 0, 0, Math.PI * 2)
     ctx.fill()
-
     ctx.beginPath()
-    ctx.ellipse(
-      cx + cloud.width * 0.45,
-      cloud.y + 3,
-      cloud.width * 0.55,
-      cloud.height * 0.65,
-      0,
-      0,
-      Math.PI * 2
-    )
+    ctx.ellipse(cx + cloud.width * 0.45, cloud.y + 3, cloud.width * 0.55, cloud.height * 0.65, 0, 0, Math.PI * 2)
     ctx.fill()
-
     ctx.restore()
   }
 }
 
-function drawMountains(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  altitude: number
-) {
+/* ── Mountains (static at bottom) ── */
+function drawMountains(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const groundY = h - 60
-  const altOffset = Math.min(altitude * 0.02, groundY - 100)
 
-  // far mountains
   ctx.fillStyle = "#6b8ea3"
   ctx.beginPath()
-  ctx.moveTo(0, groundY - 120 + altOffset)
+  ctx.moveTo(0, groundY - 120)
   const farPeaks = [0.1, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95, 1]
   const farHeights = [80, 140, 100, 170, 130, 150, 90, 60]
   for (let i = 0; i < farPeaks.length; i++) {
-    ctx.lineTo(w * farPeaks[i], groundY - farHeights[i] + altOffset)
+    ctx.lineTo(w * farPeaks[i], groundY - farHeights[i])
   }
-  ctx.lineTo(w, groundY + altOffset)
-  ctx.lineTo(0, groundY + altOffset)
+  ctx.lineTo(w, groundY)
+  ctx.lineTo(0, groundY)
   ctx.closePath()
   ctx.fill()
 
-  // near mountains
   ctx.fillStyle = "#4a7c59"
   ctx.beginPath()
-  ctx.moveTo(0, groundY - 40 + altOffset)
+  ctx.moveTo(0, groundY - 40)
   const nearPeaks = [0.08, 0.18, 0.3, 0.45, 0.58, 0.72, 0.88, 1]
   const nearHeights = [50, 90, 60, 110, 75, 95, 55, 40]
   for (let i = 0; i < nearPeaks.length; i++) {
-    ctx.lineTo(w * nearPeaks[i], groundY - nearHeights[i] + altOffset)
+    ctx.lineTo(w * nearPeaks[i], groundY - nearHeights[i])
   }
-  ctx.lineTo(w, groundY + altOffset)
-  ctx.lineTo(0, groundY + altOffset)
+  ctx.lineTo(w, groundY)
+  ctx.lineTo(0, groundY)
   ctx.closePath()
   ctx.fill()
 }
 
-function drawGround(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  altitude: number
-) {
+/* ── Ground (static at bottom) ── */
+function drawGround(ctx: CanvasRenderingContext2D, w: number, h: number) {
   const groundY = h - 60
-  const altOffset = Math.min(altitude * 0.02, groundY)
-
-  if (groundY + altOffset > h) return
-
-  // grass
-  const gradient = ctx.createLinearGradient(0, groundY + altOffset, 0, h)
+  const gradient = ctx.createLinearGradient(0, groundY, 0, h)
   gradient.addColorStop(0, "#5a9e3e")
   gradient.addColorStop(1, "#3d7a2a")
   ctx.fillStyle = gradient
-  ctx.fillRect(0, groundY + altOffset, w, h - groundY - altOffset)
+  ctx.fillRect(0, groundY, w, 60)
 
-  // darker line
   ctx.strokeStyle = "#3d6b2a"
   ctx.lineWidth = 2
   ctx.beginPath()
-  ctx.moveTo(0, groundY + altOffset)
-  ctx.lineTo(w, groundY + altOffset)
+  ctx.moveTo(0, groundY)
+  ctx.lineTo(w, groundY)
   ctx.stroke()
 }
 
+/* ── Balloon (Y position mapped from altitude) ── */
 function drawBalloon(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
   state: BalloonState,
-  tick: number
+  tick: number,
 ) {
-  const balloonX = w / 2
   const groundY = h - 60
-  const altOffset = Math.min(state.altitude * 0.02, groundY - 200)
-  const balloonY = Math.max(140, groundY - 120 - altOffset)
+  const topMargin = GC.TOP_MARGIN
+  const bottomY = groundY - 120 // balloon center when on ground
+  const topY = topMargin       // balloon center at max altitude
 
-  // subtle sway
+  // Map altitude [0..SCREEN_MAX_ALTITUDE] → [bottomY..topY]
+  const altPct = Math.min(state.altitude / GC.SCREEN_MAX_ALTITUDE, 1)
+  const balloonY = bottomY - altPct * (bottomY - topY)
+
+  const balloonX = w * 0.35 // shifted left so controls on right don't overlap
   const sway = Math.sin(tick * 0.02) * 3
 
   ctx.save()
   ctx.translate(balloonX + sway, balloonY)
 
-  // ropes
+  // Ropes
   ctx.strokeStyle = "#5a4a3a"
   ctx.lineWidth = 1.5
-  ctx.beginPath()
-  ctx.moveTo(-22, 50)
-  ctx.lineTo(-18, 85)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(22, 50)
-  ctx.lineTo(18, 85)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(-8, 55)
-  ctx.lineTo(-8, 85)
-  ctx.stroke()
-  ctx.beginPath()
-  ctx.moveTo(8, 55)
-  ctx.lineTo(8, 85)
-  ctx.stroke()
+  for (const [x1, x2] of [[-22, -18], [22, 18], [-8, -8], [8, 8]]) {
+    ctx.beginPath()
+    ctx.moveTo(x1, 50)
+    ctx.lineTo(x2, 85)
+    ctx.stroke()
+  }
 
-  // basket
+  // Basket
   ctx.fillStyle = "#8B6914"
   ctx.strokeStyle = "#6B4F12"
   ctx.lineWidth = 2
@@ -221,29 +150,22 @@ function drawBalloon(
   ctx.fill()
   ctx.stroke()
 
-  // basket weave lines
+  // Basket weave
   ctx.strokeStyle = "#6B4F12"
   ctx.lineWidth = 0.8
   for (let i = -15; i <= 15; i += 6) {
-    ctx.beginPath()
-    ctx.moveTo(i, 87)
-    ctx.lineTo(i, 108)
-    ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(i, 87); ctx.lineTo(i, 108); ctx.stroke()
   }
   for (let j = 90; j <= 107; j += 5) {
-    ctx.beginPath()
-    ctx.moveTo(-18, j)
-    ctx.lineTo(18, j)
-    ctx.stroke()
+    ctx.beginPath(); ctx.moveTo(-18, j); ctx.lineTo(18, j); ctx.stroke()
   }
 
-  // sandbags hanging from basket
+  // Sandbags
   for (let i = 0; i < state.sandbags; i++) {
     const side = i % 2 === 0 ? -1 : 1
     const row = Math.floor(i / 2)
     const bagX = side * (24 + row * 4)
     const bagY = 92 + row * 8
-
     ctx.fillStyle = "#8B7355"
     ctx.strokeStyle = "#5a4a3a"
     ctx.lineWidth = 1
@@ -251,8 +173,6 @@ function drawBalloon(
     ctx.ellipse(bagX, bagY, 5, 4, 0, 0, Math.PI * 2)
     ctx.fill()
     ctx.stroke()
-
-    // rope to basket
     ctx.strokeStyle = "#5a4a3a"
     ctx.lineWidth = 0.8
     ctx.beginPath()
@@ -261,12 +181,11 @@ function drawBalloon(
     ctx.stroke()
   }
 
-  // flame effect when burner is on
+  // Flame
   if (state.burnerPower > 0 && state.fuel > 0) {
     const flameHeight = 10 + state.burnerPower * 0.25
     const flicker = Math.sin(tick * 0.3) * 3
 
-    // outer flame glow
     ctx.save()
     ctx.globalAlpha = 0.3
     ctx.fillStyle = "#ff6600"
@@ -275,14 +194,12 @@ function drawBalloon(
     ctx.fill()
     ctx.restore()
 
-    // inner flame
     ctx.fillStyle = "#ff9900"
     ctx.beginPath()
     ctx.moveTo(-4 + flicker * 0.5, 65)
     ctx.quadraticCurveTo(0, 65 - flameHeight, 4 - flicker * 0.5, 65)
     ctx.fill()
 
-    // core
     ctx.fillStyle = "#ffdd44"
     ctx.beginPath()
     ctx.moveTo(-2, 65)
@@ -290,7 +207,7 @@ function drawBalloon(
     ctx.fill()
   }
 
-  // envelope (balloon)
+  // Envelope
   const envGrad = ctx.createLinearGradient(-55, -70, 55, 50)
   envGrad.addColorStop(0, "#e63946")
   envGrad.addColorStop(0.3, "#e63946")
@@ -311,7 +228,6 @@ function drawBalloon(
   ctx.closePath()
   ctx.fill()
 
-  // outline
   ctx.strokeStyle = "#1d3557"
   ctx.lineWidth = 2
   ctx.beginPath()
@@ -323,7 +239,7 @@ function drawBalloon(
   ctx.closePath()
   ctx.stroke()
 
-  // vertical seams
+  // Seams
   ctx.strokeStyle = "rgba(29, 53, 87, 0.3)"
   ctx.lineWidth = 1
   for (const offset of [-25, 0, 25]) {
@@ -333,7 +249,7 @@ function drawBalloon(
     ctx.stroke()
   }
 
-  // highlight
+  // Highlight
   ctx.save()
   ctx.globalAlpha = 0.15
   ctx.fillStyle = "#fff"
@@ -342,22 +258,14 @@ function drawBalloon(
   ctx.fill()
   ctx.restore()
 
-  // heat shimmer at top
+  // Heat shimmer
   if (state.airTemperature > 60) {
     const shimmerOpacity = Math.min((state.airTemperature - 60) / 140, 0.2)
     ctx.save()
     ctx.globalAlpha = shimmerOpacity
     ctx.fillStyle = "#ffccaa"
     ctx.beginPath()
-    ctx.ellipse(
-      0,
-      -95 + Math.sin(tick * 0.1) * 3,
-      20,
-      8,
-      0,
-      0,
-      Math.PI * 2
-    )
+    ctx.ellipse(0, -95 + Math.sin(tick * 0.1) * 3, 20, 8, 0, 0, Math.PI * 2)
     ctx.fill()
     ctx.restore()
   }
@@ -365,13 +273,105 @@ function drawBalloon(
   ctx.restore()
 }
 
+/* ── Countdown overlay on the canvas ── */
+function drawCountdown(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  state: BalloonState,
+  tick: number,
+) {
+  if (state.hasLiftedOff || state.gameOver) return
+
+  const seconds = Math.ceil(state.countdown)
+  const urgencyPct = 1 - state.countdown / GC.COUNTDOWN_SECONDS
+
+  // Position it in the upper-center-left area (not overlapping right panel)
+  const cx = w * 0.35
+  const cy = 50
+
+  // Pulsing effect when urgent
+  const pulse = state.countdown < 10 ? Math.sin(tick * 0.15) * 0.15 + 0.85 : 1
+  const fontSize = 38 * pulse
+
+  // Background pill
+  const pillW = 200
+  const pillH = 54
+  ctx.save()
+  ctx.globalAlpha = 0.8
+  ctx.fillStyle = urgencyPct > 0.7 ? "#991b1b" : urgencyPct > 0.4 ? "#92400e" : "#1e3a5f"
+  roundRect(ctx, cx - pillW / 2, cy - pillH / 2, pillW, pillH, 14)
+  ctx.fill()
+  ctx.restore()
+
+  // Label
+  ctx.fillStyle = "rgba(255,255,255,0.7)"
+  ctx.font = "bold 11px sans-serif"
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.fillText("LAUNCH IN", cx, cy - 14)
+
+  // Timer
+  ctx.fillStyle =
+    urgencyPct > 0.7 ? "#fca5a5" : urgencyPct > 0.4 ? "#fcd34d" : "#bfdbfe"
+  ctx.font = `bold ${fontSize}px monospace`
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.fillText(`${seconds}s`, cx, cy + 10)
+
+  // Progress bar
+  const barW = pillW - 24
+  const barH = 4
+  const barX = cx - barW / 2
+  const barY = cy + pillH / 2 - 10
+  ctx.fillStyle = "rgba(255,255,255,0.2)"
+  roundRect(ctx, barX, barY, barW, barH, 2)
+  ctx.fill()
+  ctx.fillStyle =
+    urgencyPct > 0.7 ? "#ef4444" : urgencyPct > 0.4 ? "#f59e0b" : "#60a5fa"
+  roundRect(ctx, barX, barY, barW * (1 - urgencyPct), barH, 2)
+  ctx.fill()
+}
+
+/* ── Danger zone edge warnings ── */
+function drawEdgeWarnings(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  state: BalloonState,
+) {
+  if (state.gameOver) return
+  const altPct = state.altitude / GC.SCREEN_MAX_ALTITUDE
+
+  // Top warning
+  if (altPct > 0.75) {
+    const warningAlpha = Math.min((altPct - 0.75) / 0.25, 0.5)
+    const grad = ctx.createLinearGradient(0, 0, 0, 80)
+    grad.addColorStop(0, `rgba(239, 68, 68, ${warningAlpha})`)
+    grad.addColorStop(1, "rgba(239, 68, 68, 0)")
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, w, 80)
+  }
+
+  // Bottom warning (near ground with high descent speed)
+  if (state.altitude < 60 && state.velocity < -0.3) {
+    const warningAlpha = Math.min(Math.abs(state.velocity) / 1.5, 0.5)
+    const grad = ctx.createLinearGradient(0, h, 0, h - 80)
+    grad.addColorStop(0, `rgba(239, 68, 68, ${warningAlpha})`)
+    grad.addColorStop(1, "rgba(239, 68, 68, 0)")
+    ctx.fillStyle = grad
+    ctx.fillRect(0, h - 80, w, 80)
+  }
+}
+
+/* ── Helpers ── */
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
   w: number,
   h: number,
-  r: number
+  r: number,
 ) {
   ctx.beginPath()
   ctx.moveTo(x + r, y)
@@ -386,6 +386,7 @@ function roundRect(
   ctx.closePath()
 }
 
+/* ── Main Component ── */
 export default function BalloonCanvas({
   state,
   clouds,
@@ -404,12 +405,14 @@ export default function BalloonCanvas({
     const h = canvas.height
 
     ctx.clearRect(0, 0, w, h)
-    drawSky(ctx, w, h, state.altitude)
-    drawStars(ctx, stars, state.altitude, tick)
-    drawClouds(ctx, clouds, w, state.altitude, tick)
-    drawMountains(ctx, w, h, state.altitude)
-    drawGround(ctx, w, h, state.altitude)
+    drawSky(ctx, w, h)
+    drawStars(ctx, stars, tick)
+    drawClouds(ctx, clouds, w, tick)
+    drawMountains(ctx, w, h)
+    drawGround(ctx, w, h)
     drawBalloon(ctx, w, h, state, tick)
+    drawEdgeWarnings(ctx, w, h, state)
+    drawCountdown(ctx, w, h, state, tick)
   }, [state, clouds, stars, tick])
 
   useEffect(() => {
