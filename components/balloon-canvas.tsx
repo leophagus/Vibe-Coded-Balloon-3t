@@ -109,6 +109,101 @@ function drawGround(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.stroke()
 }
 
+/* ── Scoring reference lines ── */
+function drawScoringLines(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  state: BalloonState,
+) {
+  const groundY = h - 60
+  const bottomY = groundY - 120
+  const topY = GC.TOP_MARGIN
+
+  const altToY = (alt: number) => {
+    const pct = Math.min(alt / GC.SCREEN_MAX_ALTITUDE, 1)
+    return bottomY - pct * (bottomY - topY)
+  }
+
+  // Mountain peak line
+  const mountainY = altToY(GC.MOUNTAIN_LINE_ALTITUDE)
+  ctx.save()
+  ctx.setLineDash([8, 6])
+  ctx.strokeStyle = "rgba(234, 179, 8, 0.5)"
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(0, mountainY)
+  ctx.lineTo(w, mountainY)
+  ctx.stroke()
+  // Label
+  ctx.setLineDash([])
+  ctx.fillStyle = "rgba(234, 179, 8, 0.7)"
+  ctx.font = "bold 11px sans-serif"
+  ctx.textAlign = "right"
+  ctx.textBaseline = "middle"
+  ctx.fillText(`+${GC.MOUNTAIN_CROSS_SCORE} pts`, w - 240, mountainY - 10)
+  ctx.restore()
+
+  // Middle line
+  const middleY = altToY(GC.MIDDLE_LINE_ALTITUDE)
+  ctx.save()
+  ctx.setLineDash([8, 6])
+  ctx.strokeStyle = "rgba(96, 165, 250, 0.5)"
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(0, middleY)
+  ctx.lineTo(w, middleY)
+  ctx.stroke()
+  // Label
+  ctx.setLineDash([])
+  ctx.fillStyle = "rgba(96, 165, 250, 0.7)"
+  ctx.font = "bold 11px sans-serif"
+  ctx.textAlign = "right"
+  ctx.textBaseline = "middle"
+  ctx.fillText(`+${GC.MIDDLE_CROSS_SCORE} pts`, w - 240, middleY - 10)
+  ctx.restore()
+}
+
+/* ── Score display & popups ── */
+function drawScore(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  state: BalloonState,
+  tick: number,
+) {
+  // Main score
+  ctx.save()
+  ctx.fillStyle = "rgba(0, 0, 0, 0.4)"
+  roundRect(ctx, w * 0.35 - 50, 10, 100, 36, 10)
+  ctx.fill()
+  ctx.fillStyle = "#fff"
+  ctx.font = "bold 20px monospace"
+  ctx.textAlign = "center"
+  ctx.textBaseline = "middle"
+  ctx.fillText(`${state.score}`, w * 0.35, 28)
+  ctx.font = "8px sans-serif"
+  ctx.fillStyle = "rgba(255,255,255,0.6)"
+  ctx.fillText("SCORE", w * 0.35, 42)
+  ctx.restore()
+
+  // Score popups
+  for (const popup of state.scorePopups) {
+    const age = tick - popup.tick
+    const progress = age / 90 // 0..1 over ~1.5s
+    const opacity = 1 - progress
+    const yOffset = -age * 0.6
+
+    ctx.save()
+    ctx.globalAlpha = Math.max(0, opacity)
+    ctx.fillStyle = "#fbbf24"
+    ctx.font = "bold 16px sans-serif"
+    ctx.textAlign = "center"
+    ctx.textBaseline = "middle"
+    ctx.fillText(popup.text, w * 0.35, 60 + yOffset)
+    ctx.restore()
+  }
+}
+
 /* ── Balloon (Y position mapped from altitude) ── */
 function drawBalloon(
   ctx: CanvasRenderingContext2D,
@@ -410,9 +505,11 @@ export default function BalloonCanvas({
     drawClouds(ctx, clouds, w, tick)
     drawMountains(ctx, w, h)
     drawGround(ctx, w, h)
+    drawScoringLines(ctx, w, h, state)
     drawBalloon(ctx, w, h, state, tick)
     drawEdgeWarnings(ctx, w, h, state)
     drawCountdown(ctx, w, h, state, tick)
+    drawScore(ctx, w, state, tick)
   }, [state, clouds, stars, tick])
 
   useEffect(() => {

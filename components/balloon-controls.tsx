@@ -55,6 +55,9 @@ export default function BalloonControls({
           >
             <p className="text-xl font-bold">{gameOverTitle}</p>
             <p className="text-sm opacity-80 mt-2">{gameOverSub}</p>
+            <p className="text-2xl font-bold mt-3 text-amber-300 tabular-nums">
+              {state.score} pts
+            </p>
             <p className="text-sm opacity-60 mt-1">
               {"Max altitude: "}
               {Math.round(state.maxAltitude)}m
@@ -83,6 +86,9 @@ export default function BalloonControls({
           <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
             <div className="bg-emerald-800/90 text-white rounded-2xl px-8 py-6 text-center backdrop-blur-sm shadow-2xl pointer-events-auto max-w-xs">
               <p className="text-xl font-bold">Safe Landing!</p>
+              <p className="text-2xl font-bold mt-2 text-amber-300 tabular-nums">
+                {state.score} pts
+              </p>
               <p className="text-sm opacity-80 mt-2">
                 {"Max altitude: "}
                 {Math.round(state.maxAltitude)}
