@@ -58,6 +58,7 @@ function generateStars(): Star[] {
 
 export default function BalloonGame() {
   const [state, setState] = useState<BalloonState>(createInitialState)
+  const [bestScore, setBestScore] = useState(0)
   const [tick, setTick] = useState(0)
   const tickRef = useRef(0)
   const keysRef = useRef<Set<string>>(new Set())
@@ -80,7 +81,10 @@ export default function BalloonGame() {
   }, [])
 
   const handleReset = useCallback(() => {
-    setState(createInitialState())
+    setState((prev) => {
+      setBestScore((b) => Math.max(b, prev.score))
+      return createInitialState()
+    })
   }, [])
 
   // Keyboard input
@@ -120,7 +124,10 @@ export default function BalloonGame() {
       lastTime = time
 
       setState((prev) => {
-        if (prev.gameOver) return prev
+        if (prev.gameOver) {
+          setBestScore((b) => Math.max(b, prev.score))
+          return prev
+        }
 
         let {
           altitude,
@@ -348,7 +355,7 @@ export default function BalloonGame() {
   return (
     <div className="relative w-full h-screen overflow-hidden select-none">
       <BalloonCanvas state={state} clouds={clouds} stars={stars} tick={tick} />
-      <BalloonHud state={state} />
+      <BalloonHud state={state} bestScore={bestScore} />
       <BalloonControls
         state={state}
         onBurnerChange={handleBurnerChange}
